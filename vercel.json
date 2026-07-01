@@ -1,0 +1,13 @@
+{
+  "installCommand": "cd frontend && npm install && cd ../backend && npm install",
+  "buildCommand": "cd frontend && npm run build",
+  "outputDirectory": "frontend/dist",
+  "rewrites": [
+    { "source": "/auth/:path*", "destination": "/api/index" },
+    { "source": "/accounts/:path*", "destination": "/api/index" },
+    { "source": "/accounts", "destination": "/api/index" },
+    { "source": "/schedule/:path*", "destination": "/api/index" },
+    { "source": "/schedule", "destination": "/api/index" },
+    { "source": "/post/:path*", "destination": "/api/index" }
+  ]
+}
