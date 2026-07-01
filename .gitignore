@@ -1,6 +1,10 @@
 node_modules/
 dist/
 .env
+.env.local
+.envlocal
+backend/.env.local
+backend/.envlocal
 backend/data/db.json
 .agents/
 .vercel/

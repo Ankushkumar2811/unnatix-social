@@ -1,7 +1,9 @@
 import express from "express";
 import axios from "axios";
+import "../config/env.js";
 import { nanoid } from "nanoid";
 import { db } from "../db.js";
+import { createSignedOAuthState, verifySignedOAuthState } from "../utils/oauthState.js";
 
 const router = express.Router();
 
@@ -13,29 +15,42 @@ const {
 } = process.env;
 
 const GRAPH = "https://graph.facebook.com/v19.0";
+const META_OAUTH_DIALOG = "https://www.facebook.com/v19.0/dialog/oauth";
+const META_SCOPES = [
+  "pages_show_list",
+  "pages_read_engagement",
+  "pages_manage_posts",
+  "instagram_basic",
+  "instagram_content_publish",
+  "business_management"
+];
 
 // Step 1: Redirect user to Meta login/consent screen
 router.get("/auth/meta", (req, res) => {
-  const scopes = [
-    "pages_show_list",
-    "pages_read_engagement",
-    "pages_manage_posts",
-    "instagram_basic",
-    "instagram_content_publish",
-    "business_management"
-  ].join(",");
+  if (!META_APP_ID || !META_APP_SECRET || !META_REDIRECT_URI) {
+    console.error("[meta-oauth] Missing Meta OAuth configuration");
+    return res.status(500).send("Meta OAuth is not configured.");
+  }
 
-  const url = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(
-    META_REDIRECT_URI
-  )}&scope=${scopes}&response_type=code`;
+  const params = new URLSearchParams({
+    client_id: META_APP_ID,
+    redirect_uri: META_REDIRECT_URI,
+    scope: META_SCOPES.join(","),
+    response_type: "code",
+    state: createSignedOAuthState("meta", META_APP_SECRET)
+  });
 
-  res.redirect(url);
+  res.redirect(`${META_OAUTH_DIALOG}?${params.toString()}`);
 });
 
 // Step 2: Meta redirects back here with a ?code=
 router.get("/auth/meta/callback", async (req, res) => {
-  const { code } = req.query;
+  const { code, state } = req.query;
   if (!code) return res.status(400).send("Missing code from Meta");
+  if (!verifySignedOAuthState(state, "meta", META_APP_SECRET)) {
+    console.error("[meta-oauth] Invalid OAuth state");
+    return res.status(400).send("Invalid OAuth state");
+  }
 
   try {
     // Exchange code for short-lived user token

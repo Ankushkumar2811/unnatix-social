@@ -1,8 +1,10 @@
 import express from "express";
 import axios from "axios";
 import { google } from "googleapis";
+import "../config/env.js";
 import { nanoid } from "nanoid";
 import { db } from "../db.js";
+import { createSignedOAuthState, verifySignedOAuthState } from "../utils/oauthState.js";
 
 const router = express.Router();
 
@@ -17,6 +19,10 @@ function getOAuthClient() {
   return new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI);
 }
 
+function isGoogleOAuthConfigured() {
+  return Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_REDIRECT_URI);
+}
+
 // Scopes for both YouTube and Google Business Profile (GMB) in one consent screen
 const SCOPES = [
   "https://www.googleapis.com/auth/youtube.upload",
@@ -28,18 +34,28 @@ const SCOPES = [
 ];
 
 router.get("/auth/google", (req, res) => {
+  if (!isGoogleOAuthConfigured()) {
+    console.error("[google-oauth] Missing Google OAuth configuration");
+    return res.status(500).send("Google OAuth is not configured.");
+  }
+
   const oauth2Client = getOAuthClient();
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline", // needed to get a refresh_token
     prompt: "consent",
-    scope: SCOPES
+    scope: SCOPES,
+    state: createSignedOAuthState("google", GOOGLE_CLIENT_SECRET)
   });
   res.redirect(url);
 });
 
 router.get("/auth/google/callback", async (req, res) => {
-  const { code } = req.query;
+  const { code, state } = req.query;
   if (!code) return res.status(400).send("Missing code from Google");
+  if (!verifySignedOAuthState(state, "google", GOOGLE_CLIENT_SECRET)) {
+    console.error("[google-oauth] Invalid OAuth state");
+    return res.status(400).send("Invalid OAuth state");
+  }
 
   try {
     const oauth2Client = getOAuthClient();

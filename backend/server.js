@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
+import "./config/env.js";
 import { initDb } from "./db.js";
 import { startScheduler } from "./scheduler.js";
 
@@ -9,8 +9,6 @@ import linkedinRoutes from "./routes/linkedin.js";
 import googleRoutes from "./routes/google.js";
 import xRoutes from "./routes/x.js";
 import generalRoutes from "./routes/general.js";
-
-dotenv.config();
 
 const app = express();
 app.use(cors());
