@@ -14,7 +14,7 @@ const PLATFORM_META = {
 
 const CONNECT_CHANNELS = [
   { platform: "facebook", label: "Facebook Pages", href: "/auth/meta?intent=facebook" },
-  { platform: "instagram", label: "Instagram Business", href: "/auth/meta?intent=instagram" },
+  { platform: "instagram", label: "Instagram Business", action: "instagram-choice" },
   { platform: "linkedin", label: "LinkedIn", href: "/auth/linkedin" },
   { platform: "x", label: "X", href: "/auth/x" },
   { platform: "youtube", label: "YouTube / Google Business", href: "/auth/google" }
@@ -84,6 +84,7 @@ export default function App() {
   const [publishTab, setPublishTab] = useState("scheduled");
   const [layout, setLayout] = useState("list");
   const [composerOpen, setComposerOpen] = useState(false);
+  const [instagramConnectOpen, setInstagramConnectOpen] = useState(false);
   const [status, setStatus] = useState("");
   const [metaSelection, setMetaSelection] = useState(null);
   const [selectedMetaIds, setSelectedMetaIds] = useState([]);
@@ -281,10 +282,32 @@ export default function App() {
           <div style={styles.sectionLabel}>Connect channels</div>
           {CONNECT_CHANNELS.map((channel) => {
             const meta = getPlatformMeta(channel.platform);
-            return (
-              <a key={channel.label} href={`${API}${channel.href}`} style={styles.connectLink}>
+            const content = (
+              <>
                 <span style={{ ...styles.connectIcon, color: meta.color }}>+</span>
                 {channel.label}
+              </>
+            );
+
+            if (channel.action === "instagram-choice") {
+              return (
+                <button
+                  key={channel.label}
+                  type="button"
+                  style={styles.connectLinkButton}
+                  onClick={() => {
+                    setStatus("");
+                    setInstagramConnectOpen(true);
+                  }}
+                >
+                  {content}
+                </button>
+              );
+            }
+
+            return (
+              <a key={channel.label} href={`${API}${channel.href}`} style={styles.connectLink}>
+                {content}
               </a>
             );
           })}
@@ -342,6 +365,19 @@ export default function App() {
           onClose={() => setMetaSelection(null)}
           onConfirm={confirmMetaSelection}
           status={status}
+        />
+      )}
+
+      {instagramConnectOpen && (
+        <InstagramConnectModal
+          status={status}
+          onClose={() => setInstagramConnectOpen(false)}
+          onProfessional={() => {
+            window.location.href = `${API}/auth/meta?intent=instagram`;
+          }}
+          onPersonal={() => {
+            setStatus("Personal Instagram is notification-only. Use Professional for automatic publishing; personal reminders will be added next.");
+          }}
         />
       )}
     </div>
@@ -747,6 +783,75 @@ function MetaSelectionModal({ selection, selectedIds, onToggle, onClose, onConfi
   );
 }
 
+function InstagramConnectModal({ status, onClose, onProfessional, onPersonal }) {
+  return (
+    <div style={styles.modalBackdrop}>
+      <div style={styles.instagramConnectModal}>
+        <div style={styles.instagramTopBar}>
+          <button type="button" style={styles.iconButton} onClick={onClose}>
+            {"<"}
+          </button>
+          <div style={styles.instagramIcons}>
+            <span style={styles.tinyStackIcon}>UX</span>
+            <span>to</span>
+            <span style={{ color: PLATFORM_META.instagram.color, fontWeight: 900 }}>IG</span>
+          </div>
+          <button type="button" style={styles.iconButton} onClick={onClose}>
+            x
+          </button>
+        </div>
+
+        <div style={styles.instagramIntro}>
+          <h2>How would you like to connect your Instagram Account?</h2>
+          <p>Features depend on the type of Instagram account you have and the connection you choose.</p>
+        </div>
+
+        <div style={styles.instagramChoiceGrid}>
+          <section style={styles.instagramChoiceCard}>
+            <h3>
+              Professional <span>(Business & Creator)</span>
+            </h3>
+            <div style={styles.greenBadge}>Automatic & notification-based posting</div>
+            <ul style={styles.choiceList}>
+              <li>
+                <strong>Automatic posting</strong> - schedule posts and UnnatiX can publish them.
+              </li>
+              <li>
+                <strong>Notifications</strong> - get reminded when manual finishing is needed.
+              </li>
+              <li>
+                <strong>Community</strong> - prepare comment and message workflows.
+              </li>
+              <li>
+                <strong>Sent post metrics</strong> - keep performance history in one place.
+              </li>
+            </ul>
+            <button type="button" style={styles.choicePrimaryButton} onClick={onProfessional}>
+              Connect to Instagram
+            </button>
+            <p style={styles.choiceNote}>Instagram may ask you to confirm or convert to a professional account.</p>
+          </section>
+
+          <section style={styles.instagramChoiceCard}>
+            <h3>Personal</h3>
+            <div style={styles.neutralBadge}>Notification-based posting only</div>
+            <ul style={styles.choiceList}>
+              <li>
+                <strong>Notifications</strong> - schedule a reminder, then finish publishing in Instagram.
+              </li>
+            </ul>
+            <button type="button" style={styles.choiceSecondaryButton} onClick={onPersonal}>
+              Setup a Personal Account
+            </button>
+          </section>
+        </div>
+
+        {status && <div style={styles.instagramStatus}>{status}</div>}
+      </div>
+    </div>
+  );
+}
+
 function PrivacyPolicyPage() {
   return (
     <main style={styles.policyPage}>
@@ -1019,6 +1124,21 @@ const styles = {
     borderRadius: 8,
     fontSize: 14
   },
+  connectLinkButton: {
+    color: "#333",
+    textDecoration: "none",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "5px 6px",
+    borderRadius: 8,
+    fontSize: 14,
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    textAlign: "left",
+    font: "inherit"
+  },
   connectIcon: {
     width: 22,
     height: 22,
@@ -1249,6 +1369,128 @@ const styles = {
     padding: 18,
     color: "#5C625C",
     background: "#FCFBF8"
+  },
+  instagramConnectModal: {
+    width: "min(840px, 100%)",
+    background: "#FFF",
+    borderRadius: 10,
+    boxShadow: "0 20px 60px rgba(0,0,0,.2)",
+    overflow: "hidden"
+  },
+  instagramTopBar: {
+    display: "grid",
+    gridTemplateColumns: "40px 1fr 40px",
+    alignItems: "center",
+    padding: "18px 22px 8px"
+  },
+  iconButton: {
+    width: 32,
+    height: 32,
+    border: "none",
+    borderRadius: 8,
+    background: "transparent",
+    cursor: "pointer",
+    color: "#555",
+    fontSize: 18
+  },
+  instagramIcons: {
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+    color: "#333",
+    fontWeight: 800
+  },
+  tinyStackIcon: {
+    display: "inline-grid",
+    placeItems: "center",
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    background: "#151515",
+    color: "#B4F5A1",
+    fontSize: 8
+  },
+  instagramIntro: {
+    textAlign: "center",
+    padding: "4px 28px 20px"
+  },
+  instagramChoiceGrid: {
+    display: "grid",
+    gridTemplateColumns: "1.15fr .85fr",
+    gap: 24,
+    padding: "0 24px 28px"
+  },
+  instagramChoiceCard: {
+    border: "1px solid #E2DED7",
+    borderRadius: 8,
+    padding: 24,
+    minHeight: 232,
+    boxSizing: "border-box"
+  },
+  greenBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: 100,
+    padding: "4px 9px",
+    background: "#DDF4D8",
+    color: "#247241",
+    fontSize: 12,
+    fontWeight: 800,
+    marginBottom: 14
+  },
+  neutralBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: 100,
+    padding: "4px 9px",
+    background: "#ECEBE7",
+    color: "#4D4D4D",
+    fontSize: 12,
+    fontWeight: 800,
+    marginBottom: 14
+  },
+  choiceList: {
+    margin: "0 0 18px",
+    padding: 0,
+    listStyle: "none",
+    display: "grid",
+    gap: 12,
+    color: "#444",
+    lineHeight: 1.45
+  },
+  choicePrimaryButton: {
+    width: "100%",
+    border: "none",
+    background: "#A9EE96",
+    borderRadius: 8,
+    padding: "12px 16px",
+    fontWeight: 800,
+    cursor: "pointer",
+    color: "#173416"
+  },
+  choiceSecondaryButton: {
+    border: "1px solid #D6D2CA",
+    background: "#FFF",
+    borderRadius: 8,
+    padding: "11px 16px",
+    fontWeight: 700,
+    cursor: "pointer"
+  },
+  choiceNote: {
+    borderTop: "1px solid #E2DED7",
+    margin: "16px 0 0",
+    paddingTop: 14,
+    color: "#4F5B4F",
+    lineHeight: 1.5,
+    fontWeight: 700
+  },
+  instagramStatus: {
+    borderTop: "1px solid #E2DED7",
+    padding: "14px 24px",
+    color: "#5C625C",
+    background: "#FCFBF8",
+    fontSize: 13
   },
   helpButton: {
     position: "fixed",
