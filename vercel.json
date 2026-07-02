@@ -18,6 +18,7 @@
     { "src": "/schedule/(.*)", "dest": "/api/index.js" },
     { "src": "/schedule", "dest": "/api/index.js" },
     { "src": "/post/(.*)", "dest": "/api/index.js" },
+    { "src": "/privacy-policy", "dest": "/frontend/index.html" },
     { "src": "/(.*)", "dest": "/frontend/$1" }
   ]
 }
