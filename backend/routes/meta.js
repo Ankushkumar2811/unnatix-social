@@ -26,6 +26,20 @@ const META_SCOPES = [
 ];
 const META_CONNECT_INTENTS = new Set(["all", "facebook", "instagram"]);
 
+function isPendingConnectionExpired(connection) {
+  return Date.now() - new Date(connection.createdAt).getTime() > 30 * 60 * 1000;
+}
+
+function safePendingConnection(connection) {
+  return {
+    id: connection.id,
+    provider: connection.provider,
+    intent: connection.intent,
+    candidates: connection.candidates.map(({ accessToken, ...candidate }) => candidate),
+    createdAt: connection.createdAt
+  };
+}
+
 // Step 1: Redirect user to Meta login/consent screen
 router.get("/auth/meta", (req, res) => {
   if (!META_APP_ID || !META_APP_SECRET || !META_REDIRECT_URI) {
@@ -84,29 +98,19 @@ router.get("/auth/meta/callback", async (req, res) => {
       params: { access_token: userToken }
     });
 
-    await db.read();
+    const candidates = [];
 
     for (const page of pagesRes.data.data) {
-      // Save the Facebook Page
       if (intent === "all" || intent === "facebook") {
-        const existingPage = db.data.accounts.find(
-          (a) => a.platform === "facebook" && a.meta?.pageId === page.id
-        );
-        const fbAccount = {
-          id: existingPage?.id || nanoid(),
+        candidates.push({
+          candidateId: `facebook:${page.id}`,
           platform: "facebook",
           name: page.name,
           accessToken: page.access_token,
           meta: { pageId: page.id, connectType: "page" }
-        };
-        if (existingPage) {
-          Object.assign(existingPage, fbAccount);
-        } else {
-          db.data.accounts.push(fbAccount);
-        }
+        });
       }
 
-      // Check if an Instagram Business account is linked to this Page
       if (intent === "all" || intent === "instagram") {
         try {
           const igRes = await axios.get(`${GRAPH}/${page.id}`, {
@@ -120,21 +124,13 @@ router.get("/auth/meta/callback", async (req, res) => {
             const igInfo = await axios.get(`${GRAPH}/${igId}`, {
               params: { fields: "username", access_token: page.access_token }
             });
-            const existingIg = db.data.accounts.find(
-              (a) => a.platform === "instagram" && a.meta?.igId === igId
-            );
-            const igAccount = {
-              id: existingIg?.id || nanoid(),
+            candidates.push({
+              candidateId: `instagram:${igId}`,
               platform: "instagram",
               name: igInfo.data.username,
               accessToken: page.access_token, // IG publishing uses the Page token
-              meta: { igId, pageId: page.id, connectType: "business" }
-            };
-            if (existingIg) {
-              Object.assign(existingIg, igAccount);
-            } else {
-              db.data.accounts.push(igAccount);
-            }
+              meta: { igId, pageId: page.id, pageName: page.name, connectType: "business" }
+            });
           }
         } catch (e) {
           // No IG account linked to this page, ignore
@@ -142,12 +138,82 @@ router.get("/auth/meta/callback", async (req, res) => {
       }
     }
 
+    await db.read();
+    db.data.pendingConnections = (db.data.pendingConnections || []).filter(
+      (connection) => !isPendingConnectionExpired(connection)
+    );
+    const pendingConnection = {
+      id: nanoid(),
+      provider: "meta",
+      intent,
+      candidates,
+      createdAt: new Date().toISOString()
+    };
+    db.data.pendingConnections.push(pendingConnection);
     await db.write();
-    res.redirect(`${FRONTEND_URL}/?connected=${intent === "instagram" ? "instagram" : intent === "facebook" ? "facebook" : "meta"}`);
+    res.redirect(`${FRONTEND_URL}/?selectMeta=${pendingConnection.id}`);
   } catch (err) {
     console.error(err.response?.data || err.message);
     res.status(500).send("Meta OAuth failed. Check server logs.");
   }
+});
+
+router.get("/auth/meta/pending/:id", async (req, res) => {
+  await db.read();
+  db.data.pendingConnections = (db.data.pendingConnections || []).filter(
+    (connection) => !isPendingConnectionExpired(connection)
+  );
+  const connection = db.data.pendingConnections.find((item) => item.id === req.params.id);
+  if (!connection) {
+    await db.write();
+    return res.status(404).json({ error: "Pending Meta connection not found or expired" });
+  }
+  await db.write();
+  res.json(safePendingConnection(connection));
+});
+
+router.post("/auth/meta/confirm", async (req, res) => {
+  const { pendingId, candidateIds } = req.body;
+  if (!pendingId || !Array.isArray(candidateIds)) {
+    return res.status(400).json({ error: "pendingId and candidateIds are required" });
+  }
+
+  await db.read();
+  const connection = (db.data.pendingConnections || []).find((item) => item.id === pendingId);
+  if (!connection || isPendingConnectionExpired(connection)) {
+    db.data.pendingConnections = (db.data.pendingConnections || []).filter((item) => item.id !== pendingId);
+    await db.write();
+    return res.status(404).json({ error: "Pending Meta connection not found or expired" });
+  }
+
+  const selectedIds = new Set(candidateIds);
+  const selected = connection.candidates.filter((candidate) => selectedIds.has(candidate.candidateId));
+
+  for (const candidate of selected) {
+    const existing = db.data.accounts.find((account) => {
+      if (candidate.platform === "facebook") {
+        return account.platform === "facebook" && account.meta?.pageId === candidate.meta.pageId;
+      }
+      if (candidate.platform === "instagram") {
+        return account.platform === "instagram" && account.meta?.igId === candidate.meta.igId;
+      }
+      return false;
+    });
+
+    const account = {
+      id: existing?.id || nanoid(),
+      platform: candidate.platform,
+      name: candidate.name,
+      accessToken: candidate.accessToken,
+      meta: candidate.meta
+    };
+    if (existing) Object.assign(existing, account);
+    else db.data.accounts.push(account);
+  }
+
+  db.data.pendingConnections = (db.data.pendingConnections || []).filter((item) => item.id !== pendingId);
+  await db.write();
+  res.json({ success: true, connected: selected.length });
 });
 
 // Post to a Facebook Page (text + optional image URL)

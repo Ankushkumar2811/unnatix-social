@@ -85,6 +85,8 @@ export default function App() {
   const [layout, setLayout] = useState("list");
   const [composerOpen, setComposerOpen] = useState(false);
   const [status, setStatus] = useState("");
+  const [metaSelection, setMetaSelection] = useState(null);
+  const [selectedMetaIds, setSelectedMetaIds] = useState([]);
   const [form, setForm] = useState({
     accountId: "",
     content: "",
@@ -112,6 +114,24 @@ export default function App() {
     }, 15000);
     return () => clearInterval(interval);
   }, [loadAccounts, loadPosts]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pendingId = params.get("selectMeta");
+    if (!pendingId) return;
+
+    fetch(`${API}/auth/meta/pending/${pendingId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Could not load Meta channels");
+        return res.json();
+      })
+      .then((data) => {
+        setMetaSelection(data);
+        setSelectedMetaIds([]);
+        window.history.replaceState({}, "", window.location.pathname);
+      })
+      .catch(() => setStatus("Could not load Meta channel selection."));
+  }, []);
 
   const counts = useMemo(() => {
     return posts.reduce(
@@ -181,6 +201,34 @@ export default function App() {
   async function disconnectAccount(id) {
     if (!confirm("Disconnect this channel?")) return;
     await fetch(`${API}/accounts/${id}`, { method: "DELETE" });
+    await loadAccounts();
+  }
+
+  function toggleMetaCandidate(candidateId) {
+    setSelectedMetaIds((current) =>
+      current.includes(candidateId) ? current.filter((id) => id !== candidateId) : [...current, candidateId]
+    );
+  }
+
+  async function confirmMetaSelection() {
+    if (!metaSelection) return;
+    setStatus("Connecting selected channels...");
+    const res = await fetch(`${API}/auth/meta/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pendingId: metaSelection.id,
+        candidateIds: selectedMetaIds
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setStatus(`Could not connect channels: ${JSON.stringify(err.error || err)}`);
+      return;
+    }
+    setMetaSelection(null);
+    setSelectedMetaIds([]);
+    setStatus("Selected channels connected.");
     await loadAccounts();
   }
 
@@ -283,6 +331,17 @@ export default function App() {
           status={status}
           onClose={() => setComposerOpen(false)}
           onSubmit={handleSchedule}
+        />
+      )}
+
+      {metaSelection && (
+        <MetaSelectionModal
+          selection={metaSelection}
+          selectedIds={selectedMetaIds}
+          onToggle={toggleMetaCandidate}
+          onClose={() => setMetaSelection(null)}
+          onConfirm={confirmMetaSelection}
+          status={status}
         />
       )}
     </div>
@@ -618,6 +677,72 @@ function ComposerModal({ accounts, form, setForm, status, onClose, onSubmit }) {
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function MetaSelectionModal({ selection, selectedIds, onToggle, onClose, onConfirm, status }) {
+  const count = selection.candidates.length;
+  return (
+    <div style={styles.modalBackdrop}>
+      <div style={styles.composer}>
+        <div style={styles.composerHeader}>
+          <div>
+            <h2>Select channels to connect</h2>
+            <p>
+              We found {count} {count === 1 ? "channel" : "channels"}. Choose only the channels you want to add now.
+            </p>
+          </div>
+          <button type="button" style={styles.closeButton} onClick={onClose}>
+            x
+          </button>
+        </div>
+
+        {selection.candidates.length === 0 ? (
+          <div style={styles.selectionEmpty}>
+            No eligible {selection.intent === "instagram" ? "Instagram Business" : "Facebook Page"} channels were found.
+          </div>
+        ) : (
+          <div style={styles.selectionList}>
+            {selection.candidates.map((candidate) => {
+              const meta = getPlatformMeta(candidate.platform);
+              const checked = selectedIds.includes(candidate.candidateId);
+              return (
+                <label key={candidate.candidateId} style={{ ...styles.selectionItem, ...(checked ? styles.selectionItemActive : {}) }}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => onToggle(candidate.candidateId)}
+                  />
+                  <span style={{ ...styles.channelIcon, background: meta.color }}>{meta.short}</span>
+                  <span style={{ flex: 1 }}>
+                    <strong>{candidate.name}</strong>
+                    <small>
+                      {meta.label}
+                      {candidate.meta?.pageName ? ` linked to ${candidate.meta.pageName}` : ""}
+                    </small>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        )}
+
+        <div style={styles.composerFooter}>
+          {status && <span style={styles.statusText}>{status}</span>}
+          <button type="button" style={styles.secondaryButton} onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            style={{ ...styles.primaryButton, opacity: selectedIds.length ? 1 : 0.55 }}
+            disabled={!selectedIds.length}
+            onClick={onConfirm}
+          >
+            Connect Selected
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1107,6 +1232,24 @@ const styles = {
   statusText: { marginRight: "auto", color: "#5C625C", fontSize: 13 },
   secondaryButton: { border: "1px solid #D6D2CA", background: "#FFF", borderRadius: 8, padding: "10px 14px", cursor: "pointer" },
   primaryButton: { border: "none", background: "#A9EE96", borderRadius: 8, padding: "11px 16px", fontWeight: 800, cursor: "pointer" },
+  selectionList: { display: "grid", gap: 10, maxHeight: 420, overflow: "auto", paddingRight: 4 },
+  selectionItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    border: "1px solid #E2DED7",
+    borderRadius: 8,
+    padding: 12,
+    cursor: "pointer"
+  },
+  selectionItemActive: { borderColor: "#88D777", background: "#F2FCEC" },
+  selectionEmpty: {
+    border: "1px dashed #D6D2CA",
+    borderRadius: 8,
+    padding: 18,
+    color: "#5C625C",
+    background: "#FCFBF8"
+  },
   helpButton: {
     position: "fixed",
     right: 28,

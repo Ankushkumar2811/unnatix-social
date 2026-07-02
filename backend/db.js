@@ -10,7 +10,8 @@ const file = process.env.VERCEL
 
 const defaultData = {
   accounts: [],   // { id, platform, name, accessToken, refreshToken, expiresAt, meta }
-  posts: []        // { id, platform, accountId, content, mediaUrl, scheduledFor, status, result }
+  posts: [],       // { id, platform, accountId, content, mediaUrl, scheduledFor, status, result }
+  pendingConnections: []
 };
 
 const adapter = new JSONFile(file);
@@ -19,5 +20,8 @@ export const db = new Low(adapter, defaultData);
 export async function initDb() {
   await db.read();
   db.data ||= defaultData;
+  db.data.accounts ||= [];
+  db.data.posts ||= [];
+  db.data.pendingConnections ||= [];
   await db.write();
 }
