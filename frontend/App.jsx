@@ -186,6 +186,10 @@ export default function App() {
       setStatus("Select a channel first.");
       return;
     }
+    if (selectedAccount.platform === "instagram" && !form.mediaUrl) {
+      setStatus("Instagram posts require a media URL.");
+      return;
+    }
 
     setStatus("Scheduling post...");
     const res = await fetch(`${API}/schedule`, {
@@ -368,6 +372,7 @@ export default function App() {
           accounts={accounts}
           form={form}
           setForm={setForm}
+          selectedAccount={selectedAccount}
           status={status}
           onClose={() => setComposerOpen(false)}
           onSubmit={handleSchedule}
@@ -685,7 +690,21 @@ function CommunityView() {
   );
 }
 
-function ComposerModal({ accounts, form, setForm, status, onClose, onSubmit }) {
+function ComposerModal({ accounts, form, setForm, selectedAccount, status, onClose, onSubmit }) {
+  if (selectedAccount?.platform === "instagram") {
+    return (
+      <InstagramPostComposer
+        accounts={accounts}
+        form={form}
+        setForm={setForm}
+        selectedAccount={selectedAccount}
+        status={status}
+        onClose={onClose}
+        onSubmit={onSubmit}
+      />
+    );
+  }
+
   return (
     <div style={styles.modalBackdrop}>
       <form style={styles.composer} onSubmit={onSubmit}>
@@ -744,6 +763,144 @@ function ComposerModal({ accounts, form, setForm, status, onClose, onSubmit }) {
             Cancel
           </button>
           <button type="submit" style={styles.primaryButton}>
+            Schedule Post
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function InstagramPostComposer({ accounts, form, setForm, selectedAccount, status, onClose, onSubmit }) {
+  const instagramAccounts = accounts.filter((account) => account.platform === "instagram");
+  const captionCount = form.content.length;
+
+  return (
+    <div style={styles.modalBackdrop}>
+      <form style={styles.instagramPostComposer} onSubmit={onSubmit}>
+        <div style={styles.postComposerTopbar}>
+          <div style={styles.postComposerTitleGroup}>
+            <h2>Create Post</h2>
+            <button type="button" style={styles.tagButton}>Tags</button>
+          </div>
+          <div style={styles.postComposerActions}>
+            <button type="button" style={styles.textToolButton}>Templates</button>
+            <button type="button" style={styles.textToolButton}>AI Assistant</button>
+            <button type="button" style={styles.previewButton}>Preview</button>
+            <button type="button" style={styles.iconButton} onClick={onClose}>x</button>
+          </div>
+        </div>
+
+        <div style={styles.instagramComposerBody}>
+          <section style={styles.instagramEditorPane}>
+            <div style={styles.instagramAccountStrip}>
+              <span style={{ ...styles.channelIcon, background: PLATFORM_META.instagram.color }}>ig</span>
+              <select
+                style={styles.inlineSelect}
+                value={form.accountId}
+                onChange={(e) => setForm({ ...form, accountId: e.target.value })}
+                required
+              >
+                {instagramAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>{account.name}</option>
+                ))}
+              </select>
+              <button type="button" style={styles.addChannelButton}>+</button>
+            </div>
+
+            <div style={styles.instagramEditorCard}>
+              <div style={styles.postTypeRow}>
+                <span style={{ ...styles.channelIcon, background: PLATFORM_META.instagram.color }}>ig</span>
+                <label><input type="radio" defaultChecked name="ig-post-type" /> Post</label>
+                <label><input type="radio" name="ig-post-type" /> Reel</label>
+                <label><input type="radio" name="ig-post-type" /> Story</label>
+              </div>
+
+              <textarea
+                style={styles.instagramCaptionInput}
+                value={form.content}
+                onChange={(e) => setForm({ ...form, content: e.target.value.slice(0, 2200) })}
+                placeholder="Start writing or get inspired with Templates"
+              />
+
+              <label style={styles.uploadBox}>
+                <span style={styles.uploadIcon}>+</span>
+                <span>Paste media URL</span>
+                <input
+                  style={styles.hiddenInput}
+                  value={form.mediaUrl}
+                  onChange={(e) => setForm({ ...form, mediaUrl: e.target.value })}
+                  placeholder="https://..."
+                />
+              </label>
+
+              <input
+                style={styles.mediaUrlInline}
+                value={form.mediaUrl}
+                onChange={(e) => setForm({ ...form, mediaUrl: e.target.value })}
+                placeholder="https://image-or-video-url"
+                required
+              />
+
+              <div style={styles.editorToolRow}>
+                <span>+</span>
+                <span>v</span>
+                <span>@</span>
+                <span>#</span>
+                <small>{captionCount}/2200</small>
+              </div>
+
+              <div style={styles.optionRow}>
+                <span>Add Stickers</span>
+                <button type="button" style={styles.miniPill}>Music</button>
+                <button type="button" style={styles.miniPill}>Tag Products</button>
+                <span style={{ marginLeft: "auto" }}>Automatic</span>
+              </div>
+
+              <div style={styles.firstCommentRow}>
+                <span>First Comment</span>
+                <input style={styles.firstCommentInput} placeholder="Your comment" />
+              </div>
+
+              <div style={styles.aiRow}>
+                <span>AI-Generated</span>
+                <span style={styles.toggleOff}>off</span>
+              </div>
+            </div>
+          </section>
+
+          <aside style={styles.instagramPreviewPane}>
+            <h3>Instagram Preview</h3>
+            <div style={styles.instagramPreviewCard}>
+              <div style={styles.previewHeaderLine}>
+                <span style={styles.previewAvatar}></span>
+                <span></span>
+              </div>
+              {form.mediaUrl ? (
+                <img src={form.mediaUrl} alt="Instagram media preview" style={styles.previewMedia} />
+              ) : (
+                <div style={styles.previewPlaceholder}>Media preview</div>
+              )}
+              <div style={styles.previewCaption}>
+                <strong>{selectedAccount.name}</strong>
+                <span>{form.content || "Your caption will appear here."}</span>
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <div style={styles.instagramComposerFooter}>
+          <label style={styles.checkboxLabel}><input type="checkbox" /> Create Another</label>
+          <button type="button" style={styles.linkButton}>Save Draft</button>
+          {status && <span style={styles.statusText}>{status}</span>}
+          <input
+            type="datetime-local"
+            style={styles.scheduleInput}
+            value={form.scheduledFor}
+            onChange={(e) => setForm({ ...form, scheduledFor: e.target.value })}
+            required
+          />
+          <button type="submit" style={{ ...styles.primaryButton, opacity: form.mediaUrl ? 1 : 0.6 }}>
             Schedule Post
           </button>
         </div>
@@ -1420,6 +1577,121 @@ const styles = {
   statusText: { marginRight: "auto", color: "#5C625C", fontSize: 13 },
   secondaryButton: { border: "1px solid #D6D2CA", background: "#FFF", borderRadius: 8, padding: "10px 14px", cursor: "pointer" },
   primaryButton: { border: "none", background: "#A9EE96", borderRadius: 8, padding: "11px 16px", fontWeight: 800, cursor: "pointer" },
+  instagramPostComposer: {
+    width: "min(1100px, 100%)",
+    maxHeight: "calc(100vh - 36px)",
+    background: "#FFF",
+    borderRadius: 12,
+    boxShadow: "0 20px 60px rgba(0,0,0,.25)",
+    overflow: "hidden",
+    display: "grid",
+    gridTemplateRows: "64px minmax(0, 1fr) 74px"
+  },
+  postComposerTopbar: {
+    borderBottom: "1px solid #E4E0D8",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    padding: "0 30px",
+    flexWrap: "wrap"
+  },
+  postComposerTitleGroup: { display: "flex", alignItems: "center", gap: 12 },
+  tagButton: {
+    border: "1px solid #D6D2CA",
+    background: "#FFF",
+    borderRadius: 8,
+    padding: "8px 12px",
+    cursor: "pointer",
+    color: "#333"
+  },
+  postComposerActions: { display: "flex", alignItems: "center", gap: 10, color: "#555" },
+  textToolButton: { border: "none", background: "transparent", color: "#555", cursor: "pointer", fontWeight: 700 },
+  previewButton: { border: "none", background: "#DDF4D8", color: "#247241", borderRadius: 8, padding: "9px 14px", fontWeight: 800, cursor: "pointer" },
+  instagramComposerBody: {
+    minHeight: 0,
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) 380px",
+    overflow: "auto"
+  },
+  instagramEditorPane: { padding: "16px 30px 20px", minWidth: 0 },
+  instagramAccountStrip: { display: "flex", alignItems: "center", gap: 10, marginBottom: 22 },
+  inlineSelect: {
+    border: "1px solid #D6D2CA",
+    borderRadius: 8,
+    padding: "9px 10px",
+    font: "inherit",
+    maxWidth: 260
+  },
+  addChannelButton: { width: 40, height: 40, border: "1px solid #D6D2CA", background: "#FFF", borderRadius: 8, cursor: "pointer", fontSize: 20 },
+  instagramEditorCard: { border: "1px solid #E2DED7", borderRadius: 10, padding: 22 },
+  postTypeRow: { display: "flex", alignItems: "center", gap: 18, marginBottom: 12, color: "#333" },
+  instagramCaptionInput: {
+    width: "100%",
+    minHeight: 92,
+    border: "none",
+    resize: "vertical",
+    outline: "none",
+    font: "inherit",
+    color: "#222",
+    boxSizing: "border-box",
+    marginBottom: 14
+  },
+  uploadBox: {
+    width: 120,
+    height: 120,
+    border: "1px dashed #9E9E9E",
+    borderRadius: 8,
+    display: "grid",
+    placeItems: "center",
+    textAlign: "center",
+    color: "#555",
+    cursor: "pointer",
+    margin: "6px 0 12px"
+  },
+  uploadIcon: { fontSize: 24, lineHeight: 1 },
+  hiddenInput: { display: "none" },
+  mediaUrlInline: {
+    width: "100%",
+    border: "1px solid #E2DED7",
+    borderRadius: 8,
+    padding: "10px 12px",
+    boxSizing: "border-box",
+    font: "inherit",
+    marginBottom: 10
+  },
+  editorToolRow: {
+    borderBottom: "1px solid #E2DED7",
+    display: "flex",
+    alignItems: "center",
+    gap: 20,
+    padding: "8px 0 14px",
+    color: "#555"
+  },
+  optionRow: { borderBottom: "1px solid #E2DED7", display: "flex", alignItems: "center", gap: 8, padding: "14px 0", fontSize: 13 },
+  miniPill: { border: "1px solid #E2DED7", background: "#FFF", borderRadius: 8, padding: "5px 10px", cursor: "pointer" },
+  firstCommentRow: { borderBottom: "1px solid #E2DED7", display: "grid", gridTemplateColumns: "120px 1fr", gap: 10, alignItems: "center", padding: "14px 0" },
+  firstCommentInput: { border: "1px solid #D6D2CA", borderRadius: 8, padding: "9px 10px", font: "inherit" },
+  aiRow: { display: "flex", alignItems: "center", gap: 10, paddingTop: 16, fontSize: 13 },
+  toggleOff: { background: "#777", color: "#FFF", borderRadius: 100, padding: "2px 8px", fontSize: 11 },
+  instagramPreviewPane: { background: "#F6F5F2", borderLeft: "1px solid #E4E0D8", padding: "22px 30px" },
+  instagramPreviewCard: { width: 210, margin: "70px auto 0", background: "#FFF", border: "1px solid #E2DED7", borderRadius: 10, overflow: "hidden" },
+  previewHeaderLine: { height: 38, display: "flex", alignItems: "center", gap: 8, padding: "0 10px", background: "#FFF" },
+  previewAvatar: { width: 18, height: 18, borderRadius: "50%", background: "#E6E2DB" },
+  previewMedia: { width: "100%", aspectRatio: "1 / 1", objectFit: "cover", background: "#ECE9E4", display: "block" },
+  previewPlaceholder: { aspectRatio: "1 / 1", display: "grid", placeItems: "center", background: "#ECE9E4", color: "#777", fontSize: 13 },
+  previewCaption: { display: "grid", gap: 5, padding: 10, fontSize: 12, lineHeight: 1.35 },
+  instagramComposerFooter: {
+    borderTop: "1px solid #E4E0D8",
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    padding: "0 30px",
+    background: "#FFF"
+  },
+  checkboxLabel: { display: "flex", alignItems: "center", gap: 8, fontWeight: 700 },
+  linkButton: { border: "none", background: "transparent", color: "#696A65", cursor: "pointer", fontWeight: 700 },
+  scheduleInput: { marginLeft: "auto", border: "1px solid #D6D2CA", borderRadius: 8, padding: "10px 12px", font: "inherit" },
   selectionList: { display: "grid", gap: 10, maxHeight: 420, overflow: "auto", paddingRight: 4 },
   selectionItem: {
     display: "flex",
