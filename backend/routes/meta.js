@@ -3,7 +3,7 @@ import axios from "axios";
 import "../config/env.js";
 import { nanoid } from "nanoid";
 import { db } from "../db.js";
-import { createSignedOAuthState, verifySignedOAuthState } from "../utils/oauthState.js";
+import { createSignedOAuthState, readSignedOAuthState } from "../utils/oauthState.js";
 
 const router = express.Router();
 
@@ -24,6 +24,7 @@ const META_SCOPES = [
   "instagram_content_publish",
   "business_management"
 ];
+const META_CONNECT_INTENTS = new Set(["all", "facebook", "instagram"]);
 
 // Step 1: Redirect user to Meta login/consent screen
 router.get("/auth/meta", (req, res) => {
@@ -32,12 +33,13 @@ router.get("/auth/meta", (req, res) => {
     return res.status(500).send("Meta OAuth is not configured.");
   }
 
+  const intent = META_CONNECT_INTENTS.has(req.query.intent) ? req.query.intent : "all";
   const params = new URLSearchParams({
     client_id: META_APP_ID,
     redirect_uri: META_REDIRECT_URI,
     scope: META_SCOPES.join(","),
     response_type: "code",
-    state: createSignedOAuthState("meta", META_APP_SECRET)
+    state: createSignedOAuthState("meta", META_APP_SECRET, { intent })
   });
 
   res.redirect(`${META_OAUTH_DIALOG}?${params.toString()}`);
@@ -47,10 +49,12 @@ router.get("/auth/meta", (req, res) => {
 router.get("/auth/meta/callback", async (req, res) => {
   const { code, state } = req.query;
   if (!code) return res.status(400).send("Missing code from Meta");
-  if (!verifySignedOAuthState(state, "meta", META_APP_SECRET)) {
+  const oauthState = readSignedOAuthState(state, "meta", META_APP_SECRET);
+  if (!oauthState) {
     console.error("[meta-oauth] Invalid OAuth state");
     return res.status(400).send("Invalid OAuth state");
   }
+  const intent = META_CONNECT_INTENTS.has(oauthState.intent) ? oauthState.intent : "all";
 
   try {
     // Exchange code for short-lived user token
@@ -84,58 +88,62 @@ router.get("/auth/meta/callback", async (req, res) => {
 
     for (const page of pagesRes.data.data) {
       // Save the Facebook Page
-      const existingPage = db.data.accounts.find(
-        (a) => a.platform === "facebook" && a.meta?.pageId === page.id
-      );
-      const fbAccount = {
-        id: existingPage?.id || nanoid(),
-        platform: "facebook",
-        name: page.name,
-        accessToken: page.access_token,
-        meta: { pageId: page.id }
-      };
-      if (existingPage) {
-        Object.assign(existingPage, fbAccount);
-      } else {
-        db.data.accounts.push(fbAccount);
+      if (intent === "all" || intent === "facebook") {
+        const existingPage = db.data.accounts.find(
+          (a) => a.platform === "facebook" && a.meta?.pageId === page.id
+        );
+        const fbAccount = {
+          id: existingPage?.id || nanoid(),
+          platform: "facebook",
+          name: page.name,
+          accessToken: page.access_token,
+          meta: { pageId: page.id, connectType: "page" }
+        };
+        if (existingPage) {
+          Object.assign(existingPage, fbAccount);
+        } else {
+          db.data.accounts.push(fbAccount);
+        }
       }
 
       // Check if an Instagram Business account is linked to this Page
-      try {
-        const igRes = await axios.get(`${GRAPH}/${page.id}`, {
-          params: {
-            fields: "instagram_business_account",
-            access_token: page.access_token
-          }
-        });
-        const igId = igRes.data.instagram_business_account?.id;
-        if (igId) {
-          const igInfo = await axios.get(`${GRAPH}/${igId}`, {
-            params: { fields: "username", access_token: page.access_token }
+      if (intent === "all" || intent === "instagram") {
+        try {
+          const igRes = await axios.get(`${GRAPH}/${page.id}`, {
+            params: {
+              fields: "instagram_business_account",
+              access_token: page.access_token
+            }
           });
-          const existingIg = db.data.accounts.find(
-            (a) => a.platform === "instagram" && a.meta?.igId === igId
-          );
-          const igAccount = {
-            id: existingIg?.id || nanoid(),
-            platform: "instagram",
-            name: igInfo.data.username,
-            accessToken: page.access_token, // IG publishing uses the Page token
-            meta: { igId, pageId: page.id }
-          };
-          if (existingIg) {
-            Object.assign(existingIg, igAccount);
-          } else {
-            db.data.accounts.push(igAccount);
+          const igId = igRes.data.instagram_business_account?.id;
+          if (igId) {
+            const igInfo = await axios.get(`${GRAPH}/${igId}`, {
+              params: { fields: "username", access_token: page.access_token }
+            });
+            const existingIg = db.data.accounts.find(
+              (a) => a.platform === "instagram" && a.meta?.igId === igId
+            );
+            const igAccount = {
+              id: existingIg?.id || nanoid(),
+              platform: "instagram",
+              name: igInfo.data.username,
+              accessToken: page.access_token, // IG publishing uses the Page token
+              meta: { igId, pageId: page.id, connectType: "business" }
+            };
+            if (existingIg) {
+              Object.assign(existingIg, igAccount);
+            } else {
+              db.data.accounts.push(igAccount);
+            }
           }
+        } catch (e) {
+          // No IG account linked to this page, ignore
         }
-      } catch (e) {
-        // No IG account linked to this page, ignore
       }
     }
 
     await db.write();
-    res.redirect(`${FRONTEND_URL}/?connected=meta`);
+    res.redirect(`${FRONTEND_URL}/?connected=${intent === "instagram" ? "instagram" : intent === "facebook" ? "facebook" : "meta"}`);
   } catch (err) {
     console.error(err.response?.data || err.message);
     res.status(500).send("Meta OAuth failed. Check server logs.");

@@ -13,7 +13,8 @@ const PLATFORM_META = {
 };
 
 const CONNECT_CHANNELS = [
-  { platform: "facebook", label: "Facebook / Instagram", href: "/auth/meta" },
+  { platform: "facebook", label: "Facebook Pages", href: "/auth/meta?intent=facebook" },
+  { platform: "instagram", label: "Instagram Business", href: "/auth/meta?intent=instagram" },
   { platform: "linkedin", label: "LinkedIn", href: "/auth/linkedin" },
   { platform: "x", label: "X", href: "/auth/x" },
   { platform: "youtube", label: "YouTube / Google Business", href: "/auth/google" }

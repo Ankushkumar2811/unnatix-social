@@ -1,10 +1,11 @@
 import crypto from "crypto";
 
-export function createSignedOAuthState(provider, secret) {
+export function createSignedOAuthState(provider, secret, extra = {}) {
   const payload = {
     provider,
     nonce: crypto.randomBytes(16).toString("hex"),
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    ...extra
   };
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = crypto
@@ -16,6 +17,10 @@ export function createSignedOAuthState(provider, secret) {
 }
 
 export function verifySignedOAuthState(state, provider, secret, maxAgeMs = 10 * 60 * 1000) {
+  return Boolean(readSignedOAuthState(state, provider, secret, maxAgeMs));
+}
+
+export function readSignedOAuthState(state, provider, secret, maxAgeMs = 10 * 60 * 1000) {
   if (!state || typeof state !== "string" || !secret) return false;
 
   const [encodedPayload, signature] = state.split(".");
@@ -34,8 +39,9 @@ export function verifySignedOAuthState(state, provider, secret, maxAgeMs = 10 * 
 
   try {
     const payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8"));
-    return payload.provider === provider && Date.now() - payload.createdAt <= maxAgeMs;
+    if (payload.provider !== provider || Date.now() - payload.createdAt > maxAgeMs) return null;
+    return payload;
   } catch {
-    return false;
+    return null;
   }
 }
