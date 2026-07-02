@@ -1,5 +1,6 @@
 import { Low } from "lowdb";
 import { JSONFile } from "lowdb/node";
+import { MongoClient } from "mongodb";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -14,7 +15,43 @@ const defaultData = {
   pendingConnections: []
 };
 
-const adapter = new JSONFile(file);
+class MongoStateAdapter {
+  constructor(uri, dbName) {
+    this.client = new MongoClient(uri, {
+      serverSelectionTimeoutMS: 10000
+    });
+    this.dbName = dbName;
+    this.collectionName = "app_state";
+    this.documentId = "default";
+    this.connected = false;
+  }
+
+  async connect() {
+    if (this.connected) return;
+    await this.client.connect();
+    this.collection = this.client.db(this.dbName).collection(this.collectionName);
+    this.connected = true;
+  }
+
+  async read() {
+    await this.connect();
+    const doc = await this.collection.findOne({ _id: this.documentId });
+    return doc?.data || null;
+  }
+
+  async write(data) {
+    await this.connect();
+    await this.collection.updateOne(
+      { _id: this.documentId },
+      { $set: { data, updatedAt: new Date() }, $setOnInsert: { createdAt: new Date() } },
+      { upsert: true }
+    );
+  }
+}
+
+const mongoUri = process.env.MONGO_URL || process.env.MONGODB_URI;
+const mongoDbName = process.env.MONGODB_DB || process.env.DB_NAME || "unnatix_social";
+const adapter = mongoUri ? new MongoStateAdapter(mongoUri, mongoDbName) : new JSONFile(file);
 export const db = new Low(adapter, defaultData);
 
 export async function initDb() {

@@ -170,8 +170,13 @@ export default function App() {
   });
 
   function openComposer(accountId = "") {
+    const defaultAccountId =
+      accountId ||
+      accounts.find((account) => account.platform === "instagram")?.id ||
+      accounts[0]?.id ||
+      "";
     setForm({
-      accountId,
+      accountId: defaultAccountId,
       content: "",
       mediaUrl: "",
       scheduledFor: getDefaultScheduleTime()

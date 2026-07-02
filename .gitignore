@@ -9,3 +9,4 @@ backend/data/db.json
 .agents/
 .vercel/
 npm-debug.log*
+.npm-cache/
