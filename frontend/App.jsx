@@ -14,10 +14,26 @@ const PLATFORM_META = {
 
 const CONNECT_CHANNELS = [
   { platform: "facebook", label: "Facebook Pages", href: "/auth/meta?intent=facebook" },
-  { platform: "instagram", label: "Instagram Business", action: "instagram-choice" },
+  { platform: "instagram", label: "Instagram Business", action: "channel-picker" },
   { platform: "linkedin", label: "LinkedIn", href: "/auth/linkedin" },
   { platform: "x", label: "X", href: "/auth/x" },
   { platform: "youtube", label: "YouTube / Google Business", href: "/auth/google" }
+];
+
+const CHANNEL_PICKER_OPTIONS = [
+  { key: "instagram", platform: "instagram", title: "Instagram", subtitle: "Business, Creator, or Personal", action: "instagram-choice" },
+  { key: "threads", platform: "x", title: "Threads", subtitle: "Profile", disabled: true },
+  { key: "linkedin", platform: "linkedin", title: "LinkedIn", subtitle: "Page or Profile", href: "/auth/linkedin" },
+  { key: "facebook", platform: "facebook", title: "Facebook", subtitle: "Page or Group", href: "/auth/meta?intent=facebook" },
+  { key: "bluesky", platform: "youtube", title: "Bluesky", subtitle: "Profile", disabled: true },
+  { key: "youtube", platform: "youtube", title: "YouTube", subtitle: "Channel", href: "/auth/google" },
+  { key: "tiktok", platform: "x", title: "TikTok", subtitle: "Business or Personal", disabled: true },
+  { key: "mastodon", platform: "linkedin", title: "Mastodon", subtitle: "Profile", disabled: true },
+  { key: "pinterest", platform: "pinterest", title: "Pinterest", subtitle: "Business or Profile", disabled: true },
+  { key: "gmb", platform: "gmb", title: "Google Business", subtitle: "Profile", href: "/auth/google" },
+  { key: "x", platform: "x", title: "Twitter / X", subtitle: "Profile", href: "/auth/x" },
+  { key: "start-page", platform: "gmb", title: "Start Page", subtitle: "Simple, powerful link-in-bio", disabled: true },
+  { key: "request", platform: "x", title: "Can't find it?", subtitle: "Request a channel", disabled: true }
 ];
 
 const STATUS_TABS = [
@@ -84,6 +100,7 @@ export default function App() {
   const [publishTab, setPublishTab] = useState("scheduled");
   const [layout, setLayout] = useState("list");
   const [composerOpen, setComposerOpen] = useState(false);
+  const [channelPickerOpen, setChannelPickerOpen] = useState(false);
   const [instagramConnectOpen, setInstagramConnectOpen] = useState(false);
   const [status, setStatus] = useState("");
   const [metaSelection, setMetaSelection] = useState(null);
@@ -289,7 +306,7 @@ export default function App() {
               </>
             );
 
-            if (channel.action === "instagram-choice") {
+            if (channel.action === "channel-picker") {
               return (
                 <button
                   key={channel.label}
@@ -297,7 +314,7 @@ export default function App() {
                   style={styles.connectLinkButton}
                   onClick={() => {
                     setStatus("");
-                    setInstagramConnectOpen(true);
+                    setChannelPickerOpen(true);
                   }}
                 >
                   {content}
@@ -365,6 +382,24 @@ export default function App() {
           onClose={() => setMetaSelection(null)}
           onConfirm={confirmMetaSelection}
           status={status}
+        />
+      )}
+
+      {channelPickerOpen && (
+        <ChannelPickerModal
+          onClose={() => setChannelPickerOpen(false)}
+          onSelect={(option) => {
+            if (option.action === "instagram-choice") {
+              setChannelPickerOpen(false);
+              setInstagramConnectOpen(true);
+              return;
+            }
+            if (option.href) {
+              window.location.href = `${API}${option.href}`;
+              return;
+            }
+            setStatus(`${option.title} connection will be added next.`);
+          }}
         />
       )}
 
@@ -777,6 +812,39 @@ function MetaSelectionModal({ selection, selectedIds, onToggle, onClose, onConfi
           >
             Connect Selected
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChannelPickerModal({ onClose, onSelect }) {
+  return (
+    <div style={styles.modalBackdrop}>
+      <div style={styles.channelPickerModal}>
+        <button type="button" style={styles.channelPickerClose} onClick={onClose}>
+          x
+        </button>
+        <h2 style={styles.channelPickerTitle}>Connect a New Channel</h2>
+        <div style={styles.channelPickerGrid}>
+          {CHANNEL_PICKER_OPTIONS.map((option) => {
+            const meta = getPlatformMeta(option.platform);
+            return (
+              <button
+                key={option.key}
+                type="button"
+                style={{
+                  ...styles.channelPickerCard,
+                  ...(option.disabled ? styles.channelPickerCardDisabled : {})
+                }}
+                onClick={() => onSelect(option)}
+              >
+                <span style={{ ...styles.channelPickerIcon, background: meta.color }}>{meta.short}</span>
+                <strong>{option.title}</strong>
+                <span>{option.subtitle}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -1369,6 +1437,71 @@ const styles = {
     padding: 18,
     color: "#5C625C",
     background: "#FCFBF8"
+  },
+  channelPickerModal: {
+    width: "min(840px, 100%)",
+    maxHeight: "calc(100vh - 36px)",
+    overflow: "auto",
+    background: "#FFF",
+    borderRadius: 10,
+    boxShadow: "0 20px 60px rgba(0,0,0,.2)",
+    padding: "54px clamp(18px, 8vw, 78px) 40px",
+    boxSizing: "border-box",
+    position: "relative"
+  },
+  channelPickerClose: {
+    position: "absolute",
+    top: 16,
+    right: 22,
+    width: 32,
+    height: 32,
+    border: "1px solid #D6D2CA",
+    borderRadius: 8,
+    background: "#FFF",
+    cursor: "pointer",
+    fontSize: 18,
+    color: "#555"
+  },
+  channelPickerTitle: {
+    textAlign: "center",
+    margin: "0 0 26px",
+    fontSize: 22
+  },
+  channelPickerGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+    gap: 16
+  },
+  channelPickerCard: {
+    minHeight: 180,
+    border: "1px solid #E2DED7",
+    borderRadius: 8,
+    background: "#FFF",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    cursor: "pointer",
+    color: "#333",
+    font: "inherit",
+    textAlign: "center",
+    padding: 16
+  },
+  channelPickerCardDisabled: {
+    opacity: 0.82
+  },
+  channelPickerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    color: "#FFF",
+    display: "grid",
+    placeItems: "center",
+    fontSize: 13,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    marginBottom: 8
   },
   instagramConnectModal: {
     width: "min(840px, 100%)",
