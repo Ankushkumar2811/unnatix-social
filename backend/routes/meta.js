@@ -61,9 +61,9 @@ function decryptMetaSelection(token) {
   }
 }
 
-function safeMetaSelection(connection) {
+function safeMetaSelection(connection, token) {
   return {
-    id: connection.id,
+    id: token,
     provider: connection.provider,
     intent: connection.intent,
     candidates: connection.candidates.map(({ accessToken, ...candidate }) => candidate),
@@ -188,7 +188,7 @@ router.get("/auth/meta/pending/:id", async (req, res) => {
   if (!connection) {
     return res.status(404).json({ error: "Pending Meta connection not found or expired" });
   }
-  res.json(safeMetaSelection(connection));
+  res.json(safeMetaSelection(connection, req.params.id));
 });
 
 router.post("/auth/meta/confirm", async (req, res) => {
