@@ -67,6 +67,10 @@ function getDefaultScheduleTime() {
 }
 
 export default function App() {
+  if (window.location.pathname === "/privacy-policy") {
+    return <PrivacyPolicyPage />;
+  }
+
   const [accounts, setAccounts] = useState([]);
   const [posts, setPosts] = useState([]);
   const [activeView, setActiveView] = useState("publish");
@@ -611,6 +615,75 @@ function ComposerModal({ accounts, form, setForm, status, onClose, onSubmit }) {
   );
 }
 
+function PrivacyPolicyPage() {
+  return (
+    <main style={styles.policyPage}>
+      <section style={styles.policyCard}>
+        <div style={styles.policyHeader}>
+          <div style={styles.logoMark}>UX</div>
+          <div>
+            <p style={styles.policyEyebrow}>UnnatiX Social</p>
+            <h1>Privacy Policy</h1>
+          </div>
+        </div>
+
+        <p style={styles.policyIntro}>
+          This Privacy Policy explains how UnnatiX Social collects, uses, and protects information when you use our
+          social media management platform.
+        </p>
+
+        <PolicySection title="Information We Collect">
+          We may collect account information you provide, connected social channel details, scheduled post content,
+          media URLs, OAuth authorization data, usage activity, and technical information such as device, browser, and
+          log data needed to operate the service.
+        </PolicySection>
+
+        <PolicySection title="How We Use Information">
+          We use information to connect your social accounts, schedule and publish posts, display your dashboard,
+          maintain service security, troubleshoot issues, improve product reliability, and communicate important
+          service updates.
+        </PolicySection>
+
+        <PolicySection title="Cookies">
+          We may use cookies or similar technologies to keep users signed in, remember preferences, protect sessions,
+          and understand basic product usage. You can control cookies through your browser settings.
+        </PolicySection>
+
+        <PolicySection title="Third Party Services">
+          UnnatiX Social integrates with third party platforms including Meta, Facebook, Instagram, Google, YouTube,
+          Google Business Profile, LinkedIn, and X. Your use of those platforms is also governed by their own terms,
+          privacy policies, and developer platform rules.
+        </PolicySection>
+
+        <PolicySection title="Data Security">
+          We use reasonable technical and organizational safeguards to protect user information. OAuth tokens and
+          sensitive credentials are intended to be stored on backend systems only. No method of transmission or storage
+          is completely secure, but we work to reduce risk and restrict unnecessary access.
+        </PolicySection>
+
+        <PolicySection title="Contact Information">
+          If you have questions about this Privacy Policy or want to request data deletion, contact us at{" "}
+          <a href="mailto:unnatixtechnologies@gmail.com" style={styles.policyLink}>
+            unnatixtechnologies@gmail.com
+          </a>
+          .
+        </PolicySection>
+
+        <PolicySection title="Effective Date">This Privacy Policy is effective as of July 2, 2026.</PolicySection>
+      </section>
+    </main>
+  );
+}
+
+function PolicySection({ title, children }) {
+  return (
+    <section style={styles.policySection}>
+      <h2>{title}</h2>
+      <p>{children}</p>
+    </section>
+  );
+}
+
 const styles = {
   shell: {
     minHeight: "100vh",
@@ -933,5 +1006,26 @@ const styles = {
     color: "#0069A8",
     fontWeight: 900,
     cursor: "pointer"
-  }
+  },
+  policyPage: {
+    minHeight: "100vh",
+    background: "#F7F6F3",
+    color: "#151515",
+    fontFamily: "Inter, Segoe UI, system-ui, sans-serif",
+    padding: "32px 16px"
+  },
+  policyCard: {
+    maxWidth: 860,
+    margin: "0 auto",
+    background: "#FFF",
+    border: "1px solid #DEDBD5",
+    borderRadius: 10,
+    padding: "32px",
+    boxSizing: "border-box"
+  },
+  policyHeader: { display: "flex", gap: 14, alignItems: "center", marginBottom: 20 },
+  policyEyebrow: { margin: 0, color: "#4F5B4F", fontWeight: 800, fontSize: 13 },
+  policyIntro: { color: "#4A4D47", lineHeight: 1.7, fontSize: 16, marginBottom: 26 },
+  policySection: { borderTop: "1px solid #E4E0D8", paddingTop: 18, marginTop: 18 },
+  policyLink: { color: "#1B7A3D", fontWeight: 700 }
 };
