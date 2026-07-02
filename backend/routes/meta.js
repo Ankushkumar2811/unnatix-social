@@ -1,5 +1,6 @@
 import express from "express";
 import axios from "axios";
+import crypto from "crypto";
 import "../config/env.js";
 import { nanoid } from "nanoid";
 import { db } from "../db.js";
@@ -26,11 +27,41 @@ const META_SCOPES = [
 ];
 const META_CONNECT_INTENTS = new Set(["all", "facebook", "instagram"]);
 
-function isPendingConnectionExpired(connection) {
-  return Date.now() - new Date(connection.createdAt).getTime() > 30 * 60 * 1000;
+function getMetaStateKey() {
+  return crypto.createHash("sha256").update(META_APP_SECRET).digest();
 }
 
-function safePendingConnection(connection) {
+function encryptMetaSelection(payload) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", getMetaStateKey(), iv);
+  const encrypted = Buffer.concat([
+    cipher.update(JSON.stringify(payload), "utf8"),
+    cipher.final()
+  ]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([iv, tag, encrypted]).toString("base64url");
+}
+
+function decryptMetaSelection(token) {
+  if (!token || typeof token !== "string") return null;
+  try {
+    const input = Buffer.from(token, "base64url");
+    const iv = input.subarray(0, 12);
+    const tag = input.subarray(12, 28);
+    const encrypted = input.subarray(28);
+    const decipher = crypto.createDecipheriv("aes-256-gcm", getMetaStateKey(), iv);
+    decipher.setAuthTag(tag);
+    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
+    const payload = JSON.parse(decrypted);
+    const maxAgeMs = 30 * 60 * 1000;
+    if (Date.now() - new Date(payload.createdAt).getTime() > maxAgeMs) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function safeMetaSelection(connection) {
   return {
     id: connection.id,
     provider: connection.provider,
@@ -138,10 +169,6 @@ router.get("/auth/meta/callback", async (req, res) => {
       }
     }
 
-    await db.read();
-    db.data.pendingConnections = (db.data.pendingConnections || []).filter(
-      (connection) => !isPendingConnectionExpired(connection)
-    );
     const pendingConnection = {
       id: nanoid(),
       provider: "meta",
@@ -149,9 +176,7 @@ router.get("/auth/meta/callback", async (req, res) => {
       candidates,
       createdAt: new Date().toISOString()
     };
-    db.data.pendingConnections.push(pendingConnection);
-    await db.write();
-    res.redirect(`${FRONTEND_URL}/?selectMeta=${pendingConnection.id}`);
+    res.redirect(`${FRONTEND_URL}/?selectMeta=${encryptMetaSelection(pendingConnection)}`);
   } catch (err) {
     console.error(err.response?.data || err.message);
     res.status(500).send("Meta OAuth failed. Check server logs.");
@@ -159,17 +184,11 @@ router.get("/auth/meta/callback", async (req, res) => {
 });
 
 router.get("/auth/meta/pending/:id", async (req, res) => {
-  await db.read();
-  db.data.pendingConnections = (db.data.pendingConnections || []).filter(
-    (connection) => !isPendingConnectionExpired(connection)
-  );
-  const connection = db.data.pendingConnections.find((item) => item.id === req.params.id);
+  const connection = decryptMetaSelection(req.params.id);
   if (!connection) {
-    await db.write();
     return res.status(404).json({ error: "Pending Meta connection not found or expired" });
   }
-  await db.write();
-  res.json(safePendingConnection(connection));
+  res.json(safeMetaSelection(connection));
 });
 
 router.post("/auth/meta/confirm", async (req, res) => {
@@ -178,17 +197,15 @@ router.post("/auth/meta/confirm", async (req, res) => {
     return res.status(400).json({ error: "pendingId and candidateIds are required" });
   }
 
-  await db.read();
-  const connection = (db.data.pendingConnections || []).find((item) => item.id === pendingId);
-  if (!connection || isPendingConnectionExpired(connection)) {
-    db.data.pendingConnections = (db.data.pendingConnections || []).filter((item) => item.id !== pendingId);
-    await db.write();
+  const connection = decryptMetaSelection(pendingId);
+  if (!connection) {
     return res.status(404).json({ error: "Pending Meta connection not found or expired" });
   }
 
   const selectedIds = new Set(candidateIds);
   const selected = connection.candidates.filter((candidate) => selectedIds.has(candidate.candidateId));
 
+  await db.read();
   for (const candidate of selected) {
     const existing = db.data.accounts.find((account) => {
       if (candidate.platform === "facebook") {
@@ -211,7 +228,6 @@ router.post("/auth/meta/confirm", async (req, res) => {
     else db.data.accounts.push(account);
   }
 
-  db.data.pendingConnections = (db.data.pendingConnections || []).filter((item) => item.id !== pendingId);
   await db.write();
   res.json({ success: true, connected: selected.length });
 });
