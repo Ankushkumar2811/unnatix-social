@@ -71,6 +71,12 @@ export default function App() {
   if (window.location.pathname === "/privacy-policy") {
     return <PrivacyPolicyPage />;
   }
+  if (window.location.pathname === "/terms") {
+    return <TermsPage />;
+  }
+  if (window.location.pathname === "/data-deletion") {
+    return <DataDeletionPage />;
+  }
 
   const [accounts, setAccounts] = useState([]);
   const [posts, setPosts] = useState([]);
@@ -671,6 +677,112 @@ function PrivacyPolicyPage() {
         </PolicySection>
 
         <PolicySection title="Effective Date">This Privacy Policy is effective as of July 2, 2026.</PolicySection>
+      </section>
+    </main>
+  );
+}
+
+function TermsPage() {
+  return (
+    <main style={styles.policyPage}>
+      <section style={styles.policyCard}>
+        <div style={styles.policyHeader}>
+          <div style={styles.logoMark}>UX</div>
+          <div>
+            <p style={styles.policyEyebrow}>UnnatiX Social</p>
+            <h1>Terms of Service</h1>
+          </div>
+        </div>
+
+        <p style={styles.policyIntro}>
+          These Terms of Service describe the rules for using UnnatiX Social, a social media management and scheduling
+          platform.
+        </p>
+
+        <PolicySection title="Use of the Service">
+          You may use UnnatiX Social to connect supported social channels, create content, schedule posts, and manage
+          publishing workflows. You are responsible for keeping your account access secure and for all activity that
+          occurs through your connected channels.
+        </PolicySection>
+
+        <PolicySection title="Connected Social Platforms">
+          Your use of Facebook, Instagram, Google, YouTube, Google Business Profile, LinkedIn, X, and other integrated
+          services remains subject to each platform's own terms, policies, permissions, rate limits, and review
+          requirements.
+        </PolicySection>
+
+        <PolicySection title="User Content">
+          You retain ownership of the content you create or schedule. By using the service, you authorize UnnatiX Social
+          to process, store, and submit that content to the social platforms you select.
+        </PolicySection>
+
+        <PolicySection title="Prohibited Use">
+          You must not use the service for illegal activity, spam, platform manipulation, infringement, harmful content,
+          unauthorized access, or anything that violates third party platform rules.
+        </PolicySection>
+
+        <PolicySection title="Service Availability">
+          We aim to provide a reliable service, but publishing may depend on third party APIs, token validity, platform
+          permissions, outages, rate limits, and account status.
+        </PolicySection>
+
+        <PolicySection title="Contact Information">
+          For questions about these Terms, contact{" "}
+          <a href="mailto:unnatixtechnologies@gmail.com" style={styles.policyLink}>
+            unnatixtechnologies@gmail.com
+          </a>
+          .
+        </PolicySection>
+
+        <PolicySection title="Effective Date">These Terms are effective as of July 2, 2026.</PolicySection>
+      </section>
+    </main>
+  );
+}
+
+function DataDeletionPage() {
+  return (
+    <main style={styles.policyPage}>
+      <section style={styles.policyCard}>
+        <div style={styles.policyHeader}>
+          <div style={styles.logoMark}>UX</div>
+          <div>
+            <p style={styles.policyEyebrow}>UnnatiX Social</p>
+            <h1>Data Deletion Instructions</h1>
+          </div>
+        </div>
+
+        <p style={styles.policyIntro}>
+          You can request deletion of data associated with your UnnatiX Social account or connected social channels by
+          following the instructions below.
+        </p>
+
+        <PolicySection title="How to Request Deletion">
+          Email us at{" "}
+          <a href="mailto:unnatixtechnologies@gmail.com" style={styles.policyLink}>
+            unnatixtechnologies@gmail.com
+          </a>{" "}
+          with the subject line "Data Deletion Request". Include the email address or social account name connected to
+          UnnatiX Social so we can locate the relevant records.
+        </PolicySection>
+
+        <PolicySection title="What We Delete">
+          Upon verification, we will delete or anonymize connected channel records, scheduled post records, OAuth tokens,
+          stored media references, and related account data that is no longer required to provide the service.
+        </PolicySection>
+
+        <PolicySection title="Third Party Platform Data">
+          Deleting data from UnnatiX Social does not automatically delete content already published to Facebook,
+          Instagram, Google, YouTube, Google Business Profile, LinkedIn, X, or other third party platforms. You may need
+          to delete that content directly on those platforms.
+        </PolicySection>
+
+        <PolicySection title="Processing Time">
+          We aim to respond to deletion requests within a reasonable timeframe after verifying ownership of the relevant
+          account or connected channel.
+        </PolicySection>
+
+        <PolicySection title="Effective Date">These data deletion instructions are effective as of July 2, 2026.</PolicySection>
       </section>
     </main>
   );
